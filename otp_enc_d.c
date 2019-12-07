@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define SIZE 150000
+
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
 int chartoint(char start){
@@ -37,9 +39,9 @@ int main(int argc, char *argv[])
 {
 	int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
 	socklen_t sizeOfClientInfo, i, j;
-	char buffer[16384];
-	char key[8192];
-	char msg[8192];
+	char buffer[SIZE];
+	char key[SIZE];
+	char msg[SIZE];
 	char status[32];
 	struct sockaddr_in serverAddress, clientAddress;
 	pid_t pid;
@@ -82,11 +84,14 @@ int main(int argc, char *argv[])
 				break;
 			case 0:
 				// Get the message from the client and display it
-				memset(buffer, '\0', 16384);
-				charsRead = recv(establishedConnectionFD, buffer, 16383, 0); // Read the client's message from the socket
-				if (charsRead < 0) error("ERROR reading from socket");
-				printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+				memset(buffer, '\0', SIZE);
 
+				charsRead = recv(establishedConnectionFD, buffer, SIZE, 0); // Read the client's message from the socket
+					if (charsRead < 0) {
+						error("ERROR reading from socket");
+						break;
+					}
+				
 				for(i = 0; i < strlen(buffer); i++){
 					if(buffer[i] == '@') break;
 					msg[i] = buffer[i];
@@ -96,8 +101,7 @@ int main(int argc, char *argv[])
 					if(buffer[i+j] == '!') break;
 					key[j] = buffer[i+j];
 				}
-				
-				printf("%s %s\n", msg, key);
+
 
 				encrypt(msg, key);		
 

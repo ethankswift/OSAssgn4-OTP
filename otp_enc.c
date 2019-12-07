@@ -7,6 +7,8 @@
 #include <netinet/in.h>
 #include <netdb.h> 
 
+#define SIZE 100000
+
 void error(const char *msg) { perror(msg); exit(0); } // Error function used for reporting issues
 
 int main(int argc, char *argv[])
@@ -14,8 +16,10 @@ int main(int argc, char *argv[])
 	int socketFD, portNumber, charsWritten, charsRead, i, j;
 	struct sockaddr_in serverAddress;
 	struct hostent* serverHostInfo;
-	char buffer[strlen(argv[2]) + 2];
+	char key[SIZE];
+	char msg[SIZE];
 	char alpha[27] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+	FILE * f;
 
 
 
@@ -38,63 +42,76 @@ int main(int argc, char *argv[])
 	if (connect(socketFD, (struct sockaddr*)&serverAddress, sizeof(serverAddress)) < 0) // Connect socket to address
 		error("CLIENT: ERROR connecting");
 
-	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
+	memset(msg, '\0', sizeof(msg)); // Clear out the buffer array
+
+	memset(key, '\0', sizeof(key)); // Clear out the buffer array
+
+
+	//open msg file
+	f = fopen(argv[1], "r");
+	if(f == NULL) {
+		perror("no such pt file\n");
+		exit(1);
+	}
+
+	fgets(msg, SIZE, f);
+	
+	fclose(f);
+
+	//open key file
+	f = fopen(argv[2], "r");
+	if(f == NULL) {
+		perror("no such key file\n");
+		exit(1);
+	}
+
+	fgets(key, SIZE, f);
+	
+	fclose(f);
 
 	//check key length
-	if(strlen(argv[1]) > strlen(argv[2])){
+	if(strlen(msg) > strlen(key)){
 		perror("key too short\n");
 		exit(1);
 	}
 
-	// read plaintext to buffer
-	for(i = 0; i < strlen(argv[1]); i++){
-		if(argv[1][i] == '\n') break;
-		if(strchr(alpha, argv[1][i]) != NULL ) {
-			buffer[i] = argv[1][i];
+	//check characters
+	for(i = 0; i < strlen(msg); i++){
+		if(msg[i] == '\n') break;
+		if(strchr(alpha, msg[i]) == NULL ) {
+			perror("Invalid characters in plaintext\n");
+			exit(1);
 		}
-		else{
-			perror("Invalid characters\n");
+
+	}
+	for(i = 0; i < strlen(key); i++){
+		if(key[i] == '\n') break;
+		if(strchr(alpha, key[i]) == NULL ) {
+			perror("Invalid characters in key\n");
 			exit(1);
 		}
 
 	}
 	//append stop characters to buffer
-	strcat(buffer, "@");
+	strcat(msg, "@");
+	strcat(key, "!");
 
 	// send plaintext to server
-	charsWritten = send(socketFD, buffer, strlen(buffer), 0); // Write to the server
+	charsWritten = send(socketFD, msg, strlen(msg), 0); // Write to the server
 	if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-	if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
+	if (charsWritten < strlen(msg)) printf("CLIENT: WARNING: Not all data written to socket!\n");
 
-	// send key to the server
-	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer array
-
-	for(i = 0; i < strlen(argv[2]); i++){
-		if(argv[2][i] == '\n') break;
-		if(strchr(alpha, argv[2][i]) != NULL ) {
-			buffer[i] = argv[2][i];
-		}
-		else{
-			perror("Invalid characters\n");
-			exit(1);
-		}
-
-	}	
-	
-	//append stop characters to buffer
-	strcat(buffer, "!");
-	
 	// Send message to server
-	charsWritten = send(socketFD, buffer, strlen(buffer), 0); // Write to the server
+	charsWritten = send(socketFD, key, strlen(key), 0); // Write to the server
 	if (charsWritten < 0) error("CLIENT: ERROR writing to socket");
-	if (charsWritten < strlen(buffer)) printf("CLIENT: WARNING: Not all data written to socket!\n");
+	if (charsWritten < strlen(key)) printf("CLIENT: WARNING: Not all data written to socket!\n");
 
 	// Get return message from server
-	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
-	charsRead = recv(socketFD, buffer, strlen(argv[1])+2, 0); // Read data from the socket, leaving \0 at end
+	memset(key, '\0', sizeof(key)); // Clear out the buffer again for reuse
+	charsRead = recv(socketFD, key, SIZE, 0); // Read data from the socket, leaving \0 at end
 
 	if (charsRead < 0) error("CLIENT: ERROR reading from socket");
-	printf("CLIENT: I received this from the server: \"%s\"\n", buffer);
+	printf("Encrypted message: %s\n", key);
 
 	close(socketFD); // Close the socket
 	return 0;
