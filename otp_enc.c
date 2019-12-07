@@ -77,7 +77,9 @@ int main(int argc, char *argv[])
 
 	//check characters
 	for(i = 0; i < strlen(msg); i++){
-		if(msg[i] == '\n') break;
+		if(msg[i] == '\n') {
+			break;
+		}
 		if(strchr(alpha, msg[i]) == NULL ) {
 			perror("Invalid characters in plaintext\n");
 			exit(1);
@@ -111,7 +113,8 @@ int main(int argc, char *argv[])
 	charsRead = recv(socketFD, key, SIZE, 0); // Read data from the socket, leaving \0 at end
 
 	if (charsRead < 0) error("CLIENT: ERROR reading from socket");
-	printf("Encrypted message: %s\n", key);
+	key[strlen(key)] = '\n';
+	printf(key);
 
 	close(socketFD); // Close the socket
 	return 0;

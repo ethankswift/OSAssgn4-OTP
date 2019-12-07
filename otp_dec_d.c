@@ -6,40 +6,49 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define SIZE 150000
+
+
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
 int chartoint(char start){
 	int i;
-	char alpha[27] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+	char alpha[28] = {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',' ','\0'};
 
 	for(i = 0; i < 27; i++){
 		if(start == alpha[i]) return i;
 	}
 
-	return -1;
+	return 0;
 }
 
 char inttochar(int start){
-	char alpha[27] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+	char alpha[28] = {'A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z',' ','\0'};
 
 	return alpha[start];
 }
 
 void encrypt( char msg[], char key[]){
-	int i;
+	int i, temp;
 
-	for(i = 0; i < strlen(msg); i++) {
-		msg[i] = inttochar( (chartoint(msg[i]) + chartoint(key[i])) % 27 );
+
+	for(i = 0; i < strlen(msg) - 1; i++) {
+		temp = (chartoint(msg[i]) - chartoint(key[i])) % 27;
+
+		if(temp < 0) temp += 27;
+		msg[i] = inttochar(temp);
 	}
+
+
 }
 
 int main(int argc, char *argv[])
 {
 	int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
 	socklen_t sizeOfClientInfo, i, j;
-	char buffer[16384];
-	char key[8192];
-	char msg[8192];
+	char buffer[SIZE];
+	char key[SIZE];
+	char msg[SIZE];
 	char status[32];
 	struct sockaddr_in serverAddress, clientAddress;
 	pid_t pid;
@@ -82,11 +91,14 @@ int main(int argc, char *argv[])
 				break;
 			case 0:
 				// Get the message from the client and display it
-				memset(buffer, '\0', 16384);
-				charsRead = recv(establishedConnectionFD, buffer, 16383, 0); // Read the client's message from the socket
-				if (charsRead < 0) error("ERROR reading from socket");
-				printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+				memset(buffer, '\0', SIZE);
 
+				charsRead = recv(establishedConnectionFD, buffer, SIZE, 0); // Read the client's message from the socket
+					if (charsRead < 0) {
+						error("ERROR reading from socket");
+						break;
+					}
+				
 				for(i = 0; i < strlen(buffer); i++){
 					if(buffer[i] == '@') break;
 					msg[i] = buffer[i];
@@ -96,11 +108,8 @@ int main(int argc, char *argv[])
 					if(buffer[i+j] == '!') break;
 					key[j] = buffer[i+j];
 				}
-				
-				printf("%s %s\n", msg, key);
 
 				encrypt(msg, key);		
-
 				// Send a Success message back to the client
 				charsRead = send(establishedConnectionFD, msg, strlen(msg), 0); // Send success back
 				if (charsRead < 0) error("ERROR writing to socket");

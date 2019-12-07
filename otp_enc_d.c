@@ -30,7 +30,7 @@ char inttochar(int start){
 void encrypt( char msg[], char key[]){
 	int i;
 
-	for(i = 0; i < strlen(msg); i++) {
+	for(i = 0; i < strlen(msg) - 1; i++) {
 		msg[i] = inttochar( (chartoint(msg[i]) + chartoint(key[i])) % 27 );
 	}
 }
@@ -104,6 +104,7 @@ int main(int argc, char *argv[])
 
 
 				encrypt(msg, key);		
+				
 
 				// Send a Success message back to the client
 				charsRead = send(establishedConnectionFD, msg, strlen(msg), 0); // Send success back
