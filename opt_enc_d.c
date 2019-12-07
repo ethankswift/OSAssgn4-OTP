@@ -8,12 +8,41 @@
 
 void error(const char *msg) { perror(msg); exit(1); } // Error function used for reporting issues
 
+int chartoint(char start){
+	int i;
+	char alpha[27] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+
+	for(i = 0; i < 27; i++){
+		if(start == alpha[i]) return i;
+	}
+
+	return -1;
+}
+
+char inttochar(int start){
+	char alpha[27] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+
+	return alpha[start];
+}
+
+void encrypt( char msg[], char key[]){
+	int i;
+
+	for(i = 0; i < strlen(msg); i++) {
+		msg[i] = inttochar( (chartoint(msg[i]) + chartoint(key[i])) % 27 );
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	int listenSocketFD, establishedConnectionFD, portNumber, charsRead;
-	socklen_t sizeOfClientInfo;
-	char buffer[256];
+	socklen_t sizeOfClientInfo, i, j;
+	char buffer[16384];
+	char key[8192];
+	char msg[8192];
+	char status[32];
 	struct sockaddr_in serverAddress, clientAddress;
+	pid_t pid;
 
 	if (argc < 2) { fprintf(stderr,"USAGE: %s port\n", argv[0]); exit(1); } // Check usage & args
 
@@ -33,21 +62,57 @@ int main(int argc, char *argv[])
 		error("ERROR on binding");
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
-	// Accept a connection, blocking if one is not available until one connects
-	sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
-	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
-	if (establishedConnectionFD < 0) error("ERROR on accept");
+	while(1){
+		// Accept a connection, blocking if one is not available until one connects
+		sizeOfClientInfo = sizeof(clientAddress); // Get the size of the address for the client that will connect
+		establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
+		if (establishedConnectionFD < 0) error("ERROR on accept");
 
-	// Get the message from the client and display it
-	memset(buffer, '\0', 256);
-	charsRead = recv(establishedConnectionFD, buffer, 255, 0); // Read the client's message from the socket
-	if (charsRead < 0) error("ERROR reading from socket");
-	printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+		//forking for concurrency
 
-	// Send a Success message back to the client
-	charsRead = send(establishedConnectionFD, "I am the server, and I got your message", 39, 0); // Send success back
-	if (charsRead < 0) error("ERROR writing to socket");
-	close(establishedConnectionFD); // Close the existing socket which is connected to the client
+		pid_t spawnPid = -5;
+
+		spawnPid = fork();
+
+		switch(spawnPid) {
+			//error case
+			case -1:
+				perror("Something went very wrong.\n");
+				exit(1);
+				break;
+			case 0:
+				// Get the message from the client and display it
+				memset(buffer, '\0', 16384);
+				charsRead = recv(establishedConnectionFD, buffer, 16383, 0); // Read the client's message from the socket
+				if (charsRead < 0) error("ERROR reading from socket");
+				printf("SERVER: I received this from the client: \"%s\"\n", buffer);
+
+				for(i = 0; i < strlen(buffer); i++){
+					if(buffer[i] == '@') break;
+					msg[i] = buffer[i];
+				}
+				i++;
+				for(j = 0; j < strlen(buffer)-i; j++){
+					if(buffer[i+j] == '!') break;
+					key[j] = buffer[i+j];
+				}
+				
+				printf("%s %s\n", msg, key);
+
+				encrypt(msg, key);		
+
+				// Send a Success message back to the client
+				charsRead = send(establishedConnectionFD, msg, strlen(msg), 0); // Send success back
+				if (charsRead < 0) error("ERROR writing to socket");
+				close(establishedConnectionFD); // Close the existing socket which is connected to the client
+				exit(0);
+				break;
+			default:
+				//do nothing but clean processes
+				waitpid(-1, &status, WNOHANG);
+				break;
+		}
+	}
 	close(listenSocketFD); // Close the listening socket
 	return 0; 
 }
